@@ -1,80 +1,102 @@
-using UnityEngine;
-using UnityEngine.Networking;
+using System;
 using System.Collections;
 using System.Text;
+using Unity.VisualScripting;
+using Unity.VisualScripting.Antlr3.Runtime;
+using UnityEngine;
+using UnityEngine.Networking;
 
 public class RouterLoginFlow : MonoBehaviour
 {
-    IEnumerator Start()
+    private string ROUTER_IP = "192.168.100.1";
+    private string USERNAME = "telecomadmin";
+    private string PASSWORD = "admintelecom";
+
+    void Start()
     {
-        yield return LoginFlow();
+        StartCoroutine(LoginRoutine());
     }
 
-    IEnumerator LoginFlow()
+    IEnumerator LoginRoutine()
     {
-        string baseUrl = "http://192.168.100.1";
+        // 1. Base64 encode password
+        string encodedPass = Convert.ToBase64String(Encoding.UTF8.GetBytes(PASSWORD));
 
-        // 1. Get Token
-        UnityWebRequest tokenReq = UnityWebRequest.PostWwwForm(baseUrl + "/asp/GetRandCount.asp", "");
+        // 2. Get token
+        string tokenUrl = $"http://{ROUTER_IP}/asp/GetRandCount.asp";
+        UnityWebRequest tokenReq = UnityWebRequest.PostWwwForm(tokenUrl, "");
+        tokenReq.redirectLimit = 0;
         yield return tokenReq.SendWebRequest();
-        string token = tokenReq.downloadHandler.text.Trim();
-        Debug.Log("Token: " + token);
 
-        // 2. Login
-        string username = "telecomadmin";
-        string password = "admintelecom";
-        string encodedPass = System.Convert.ToBase64String(Encoding.UTF8.GetBytes(password));
-
-        WWWForm loginForm = new WWWForm();
-        loginForm.AddField("UserName", username);
-        loginForm.AddField("PassWord", encodedPass);
-        loginForm.AddField("Language", "english");
-        loginForm.AddField("x.X_HW_Token", token);
-
-        Debug.Log(username);
-        Debug.Log(encodedPass);
-        Debug.Log(token);
-
-        UnityWebRequest loginReq = UnityWebRequest.Post(baseUrl + "/login.cgi", loginForm);
-        //loginReq.SetRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-
-        // prevent auto-redirect
-        loginReq.redirectLimit = 0;
-
-        yield return loginReq.SendWebRequest();
-
-        // Debug
-        Debug.Log("Response code: " + loginReq.responseCode);
-        foreach (var kv in loginReq.GetResponseHeaders())
-            Debug.Log($"{kv.Key} = {kv.Value}");
-
-        Debug.Log("Body: " + loginReq.downloadHandler.text);
-
-
-        /*Debug.Log(loginReq.downloadHandler.text);
-
-        Debug.Log(loginReq.responseCode);
-
-        // Debug ALL headers
-        foreach (var kv in loginReq.GetResponseHeaders())
-            Debug.Log($"{kv.Key} = {kv.Value}");
-
-        string cookie = null;
-        foreach (var kv in loginReq.GetResponseHeaders())
-            if (kv.Key.ToLower() == "set-cookie")
-                cookie = kv.Value;
-
-        if (cookie == null)
+        if (tokenReq.result != UnityWebRequest.Result.Success)
         {
-            Debug.LogError("Login failed — no cookie received.");
+            Debug.LogError("Token request failed: " + tokenReq.error);
             yield break;
         }
-        Debug.Log("Received cookie: " + cookie);
 
-        // 3. Fetch Dashboard to Extract "onttoken"
-        UnityWebRequest dashReq = UnityWebRequest.Get(baseUrl + "/index.asp");
-        dashReq.SetRequestHeader("Cookie", cookie);
-        yield return dashReq.SendWebRequest();
-        string html = dashReq.downloadHandler.text;*/
+        string token = tokenReq.downloadHandler.text.Trim('\uFEFF').Trim(); // strip BOM + whitespace
+        Debug.Log("Token: " + token);
+
+        // 3. Prepare login request
+        string loginUrl = $"http://{ROUTER_IP}/login.cgi";
+        WWWForm form = new WWWForm();
+        form.AddField("UserName", USERNAME);
+        form.AddField("PassWord", encodedPass);
+        form.AddField("Language", "english");
+        form.AddField("x.X_HW_Token", token);
+
+        UnityWebRequest loginReq = UnityWebRequest.Post(loginUrl, form);
+        loginReq.redirectLimit = 0;
+        yield return loginReq.SendWebRequest();
+
+        if (loginReq.result != UnityWebRequest.Result.Success)
+        {
+            Debug.LogError("Login request failed: " + loginReq.error);
+            yield break;
+        }
+
+        // 4. Get cookies
+        string setCookie = loginReq.GetResponseHeader("Set-Cookie");
+        Debug.Log("Set-Cookie Header: " + setCookie);
+
+        // Check success
+        if (loginReq.downloadHandler.text.Contains("Logout") || loginReq.responseCode == 200)
+        {
+            Debug.Log("Logged in successfully!");
+        }
+        else
+        {
+            Debug.LogError("Login failed");
+        }
+
+        StartCoroutine(GetDevicesOnModem(setCookie));
+    }
+
+    IEnumerator GetDevicesOnModem(string cookie)
+    {
+        string url = $"http://{ROUTER_IP}/html/bbsp/common/GetLanUserDevInfo.asp";
+
+        UnityWebRequest req = UnityWebRequest.Get(url);  // usually a GET, not POST
+        req.redirectLimit = 0;
+
+        // Attach cookie header
+        req.SetRequestHeader("Cookie", cookie);
+
+        yield return req.SendWebRequest();
+
+        if (req.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("Devices: " + req.downloadHandler.text);
+            var devices = RouterParser.ParseDevices(req.downloadHandler.text);
+
+            foreach (var dev in devices)
+            {
+                Debug.Log(dev.ToString());
+            }
+        }
+        else
+        {
+            Debug.LogError("Request failed: " + req.error);
+        }
     }
 }
