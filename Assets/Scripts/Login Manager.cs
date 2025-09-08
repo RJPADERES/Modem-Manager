@@ -3,9 +3,11 @@ using System.Drawing;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using TMPro;
 using UnityEditor.UI;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class LoginManager : MonoBehaviour
@@ -20,10 +22,27 @@ public class LoginManager : MonoBehaviour
     [SerializeField] TMP_InputField AccessPointText;
     [SerializeField] GameObject ErrorMessage;
     [SerializeField] GameObject ErrorImage;
+    [SerializeField] GameObject EditLine;
+    [Header("Username & Password")]
+    [SerializeField] TMP_InputField UserName;
+    [SerializeField] TMP_InputField Password;
+    [Header("Logging In")]
+    [SerializeField] GameObject RememberCheckMark;
+    [SerializeField] GameObject ErrorLoggingInText;
+
+
+    //InputField Items
+    [SerializeField] GameObject GatewayInputFieldText;
+    [SerializeField] GameObject TextArea;
+
+    Vector3 GatewayInputFieldOriginalPosition;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        EditLine.SetActive(false);
         StartCoroutine(GateWayAccessPointChecker());
+        GatewayInputFieldText.transform.localPosition = GatewayInputFieldOriginalPosition;
     }
 
     IEnumerator GateWayAccessPointChecker()
@@ -65,6 +84,79 @@ public class LoginManager : MonoBehaviour
         }
     }
 
+    //For Clicking On Edit Access Point
+    public void OnAccessPointEditButtonPress() {
+        AccessPointText.interactable = !AccessPointLoadingItems.interactable;
+        if (AccessPointText.interactable) {
+            //Access Point Input Field Input Validators
+            EventSystem.current.SetSelectedGameObject(AccessPointText.gameObject);
+            AccessPointText.onValidateInput += ValidateChar;
+            AccessPointText.onEndEdit.AddListener(ValidateIpAddress);
+            EditLine.SetActive(true);
+        }
+    }
+
+    //Input Validator For Input only Numbers and Dots In Access Point Input Field
+    private string ipPattern = @"^(\d{1,3}\.){3}\d{1,3}$";
+    private char ValidateChar(string text, int index, char addedChar)
+    {
+        // Allow only digits and dot
+        if (char.IsDigit(addedChar) || addedChar == '.')
+            return addedChar;
+
+        return '\0';
+    }
+
+    private void ResetInputFieldText(string ip)
+    {
+        AccessPointText.text = ip;
+
+        GatewayInputFieldText.transform.localPosition = GatewayInputFieldOriginalPosition;
+        TextArea.transform.GetChild(0).gameObject.transform.localPosition = GatewayInputFieldOriginalPosition;
+
+        AccessPointText.ForceLabelUpdate();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(AccessPointText.GetComponent<RectTransform>());
+    }
+
+    private void ValidateIpAddress(string input)
+    {
+        if (Regex.IsMatch(input, ipPattern))
+        {
+            string[] parts = input.Split('.');
+            foreach (string part in parts)
+            {
+                if (int.Parse(part) > 255)
+                {
+                    ResetInputFieldText(GetGatewayIPAddress());
+                    Debug.LogWarning("Invalid IP segment: must be between 0 and 255");
+                    StartCoroutine(UIShakerAnimation.Shake(AccessPointMainItems.GetComponent<RectTransform>(), UIShakerAnimation.ShakeDirection.Horizontal));
+                    StartCoroutine(DisableInputFieldNextFrame());
+                    EditLine.SetActive(false);
+                    return;
+                }
+            }
+            Debug.Log("Valid IP: " + input);
+        }
+        else
+        {
+            ResetInputFieldText(GetGatewayIPAddress());
+            StartCoroutine(UIShakerAnimation.Shake(AccessPointMainItems.GetComponent<RectTransform>(), UIShakerAnimation.ShakeDirection.Horizontal));
+            Debug.LogWarning("Invalid IP format");
+        }
+
+        AccessPointText.onValidateInput -= ValidateChar;
+        AccessPointText.onEndEdit.RemoveListener(ValidateIpAddress);
+        StartCoroutine(DisableInputFieldNextFrame());
+        EditLine.SetActive(false);
+    }
+
+    private IEnumerator DisableInputFieldNextFrame()
+    {
+        yield return null;
+        EventSystem.current.SetSelectedGameObject(null);
+        AccessPointText.interactable = false;
+    }
+
     IEnumerator LoadingGatewaypoint() {
         ErrorImage.SetActive(false);
         ErrorMessage.SetActive(false);
@@ -86,6 +178,11 @@ public class LoginManager : MonoBehaviour
         }
         LoadingTexts.SetActive(false);
         LoadingImage.SetActive(false);
+    }
+
+    //Remember Me Button
+    public void RememberMeButtonPress() {
+        RememberCheckMark.SetActive(!RememberCheckMark.activeInHierarchy);
     }
 
     // Update is called once per frame
