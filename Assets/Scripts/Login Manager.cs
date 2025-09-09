@@ -43,17 +43,61 @@ public class LoginManager : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        LoginPage.alpha = 1f;
-        LoginPage.blocksRaycasts = true;
-        LoginPage.interactable = true;
+        if (PlayerPrefs.HasKey("AccessPoint"))
+        {
+            LoginPage.alpha = 0f;
+            LoginPage.blocksRaycasts = false;
+            LoginPage.interactable = false;
 
-        LoadingPage.alpha = 0f;
-        LoadingPage.blocksRaycasts = false;
-        LoadingPage.interactable = false;
+            LoadingPage.alpha = 1f;
+            LoadingPage.blocksRaycasts = true;
+            LoadingPage.interactable = true;
 
-        EditLine.SetActive(false);
-        StartCoroutine(GateWayAccessPointChecker());
-        GatewayInputFieldText.transform.localPosition = GatewayInputFieldOriginalPosition;
+            string AccessPoint = PlayerPrefs.GetString("AccessPoint"); // "Guest" = default
+            string UserName = PlayerPrefs.GetString("Username"); // "Guest" = default
+            string Password = PlayerPrefs.GetString("Password"); // "Guest" = default
+
+            StartCoroutine(ModemDataManager.RequestLoginToken(AccessPoint, UserName, Password, success =>
+            {
+                if (success)
+                {
+                    Debug.Log("Proceed to dashboard UI");
+
+                    LoadingPage.alpha = 0f;
+                    LoadingPage.blocksRaycasts = false;
+                    LoadingPage.interactable = false;
+                }
+                else
+                {
+                    Debug.Log("Show error message");
+
+                    LoginPage.alpha = 1f;
+                    LoginPage.blocksRaycasts = true;
+                    LoginPage.interactable = true;
+
+                    LoadingPage.alpha = 0f;
+                    LoadingPage.blocksRaycasts = false;
+                    LoadingPage.interactable = false;
+                    StartCoroutine(UIShakerAnimation.Shake(ErrorLoggingInText.GetComponent<RectTransform>(), UIShakerAnimation.ShakeDirection.Horizontal));
+                    ErrorLoggingInText.SetActive(true);
+                    PlayerPrefs.DeleteAll();
+                }
+            }));
+        }
+        else
+        {
+            LoginPage.alpha = 1f;
+            LoginPage.blocksRaycasts = true;
+            LoginPage.interactable = true;
+
+            LoadingPage.alpha = 0f;
+            LoadingPage.blocksRaycasts = false;
+            LoadingPage.interactable = false;
+
+            EditLine.SetActive(false);
+            StartCoroutine(GateWayAccessPointChecker());
+            GatewayInputFieldText.transform.localPosition = GatewayInputFieldOriginalPosition;
+        }
     }
 
     IEnumerator GateWayAccessPointChecker()
@@ -215,6 +259,13 @@ public class LoginManager : MonoBehaviour
                 LoadingPage.alpha = 0f;
                 LoadingPage.blocksRaycasts = false;
                 LoadingPage.interactable = false;
+
+                if (RememberCheckMark.activeInHierarchy) {
+                    PlayerPrefs.SetString("AccessPoint",AccessPointText.text);
+                    PlayerPrefs.SetString("Username",UserName.text);
+                    PlayerPrefs.SetString("Password",Password.text);
+                    PlayerPrefs.Save();
+                }
             }
             else {
                 Debug.Log("Show error message");
