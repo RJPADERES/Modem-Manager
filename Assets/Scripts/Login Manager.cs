@@ -12,6 +12,9 @@ using UnityEngine.UI;
 
 public class LoginManager : MonoBehaviour
 {
+    [Header("Page Windows")]
+    [SerializeField] CanvasGroup LoginPage;
+    [SerializeField] CanvasGroup LoadingPage;
 
     [Header("Access Point Objects")]
     [SerializeField] GameObject LoadingImage;
@@ -40,6 +43,14 @@ public class LoginManager : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        LoginPage.alpha = 1f;
+        LoginPage.blocksRaycasts = true;
+        LoginPage.interactable = true;
+
+        LoadingPage.alpha = 0f;
+        LoadingPage.blocksRaycasts = false;
+        LoadingPage.interactable = false;
+
         EditLine.SetActive(false);
         StartCoroutine(GateWayAccessPointChecker());
         GatewayInputFieldText.transform.localPosition = GatewayInputFieldOriginalPosition;
@@ -185,10 +196,40 @@ public class LoginManager : MonoBehaviour
         RememberCheckMark.SetActive(!RememberCheckMark.activeInHierarchy);
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
+    //For Login Button
+    public void OnLoginPress() {
+        LoginPage.alpha = 0f;
+        LoginPage.blocksRaycasts = false;
+        LoginPage.interactable = false;
+
+        LoadingPage.alpha = 1f;
+        LoadingPage.blocksRaycasts = true;
+        LoadingPage.interactable = true;
+
+        StartCoroutine(ModemDataManager.RequestLoginToken(AccessPointText.text,UserName.text,Password.text, success =>
+        {
+            if (success)
+            {
+                Debug.Log("Proceed to dashboard UI");
+
+                LoadingPage.alpha = 0f;
+                LoadingPage.blocksRaycasts = false;
+                LoadingPage.interactable = false;
+            }
+            else {
+                Debug.Log("Show error message");
+
+                LoginPage.alpha = 1f;
+                LoginPage.blocksRaycasts = true;
+                LoginPage.interactable = true;
+
+                LoadingPage.alpha = 0f;
+                LoadingPage.blocksRaycasts = false;
+                LoadingPage.interactable = false;
+                StartCoroutine(UIShakerAnimation.Shake(ErrorLoggingInText.GetComponent<RectTransform>(), UIShakerAnimation.ShakeDirection.Horizontal));
+                ErrorLoggingInText.SetActive(true);
+            }
+        }));
     }
 
     public static string GetGatewayIPAddress()
