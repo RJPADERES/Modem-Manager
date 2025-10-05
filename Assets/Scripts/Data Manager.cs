@@ -8,7 +8,10 @@ using UnityEngine.Networking;
 
 public class ModemDataManager
 {
-    public static IEnumerator RequestLoginToken(string ROUTER_IP, string USERNAME, string PASSWORD, Action<bool> onResult)
+    public static string CurrentSessionCookie;
+    public static string CurrentSessionAccessPoint;
+
+    public static IEnumerator RequestLoginToken(string ROUTER_IP, string USERNAME, string PASSWORD, Action<bool> onResult, Action<string> onCookie)
     {
         //Base64 encode password
         string encodedPass = Convert.ToBase64String(Encoding.UTF8.GetBytes(PASSWORD));
@@ -23,6 +26,7 @@ public class ModemDataManager
         {
             Debug.LogError("Token request failed: " + tokenReq.error);
             onResult?.Invoke(false);
+            onCookie?.Invoke(null);
             yield break;
         }
 
@@ -44,14 +48,18 @@ public class ModemDataManager
         //Get cookies
         string setCookie = loginReq.GetResponseHeader("Set-Cookie");
         Debug.Log("Set-Cookie Header: " + setCookie);
-        if (setCookie == null || setCookie == "")
+
+        if (string.IsNullOrEmpty(setCookie))
         {
             Debug.LogError("Login failed");
             onResult?.Invoke(false);
+            onCookie?.Invoke(null);
         }
-        else {
+        else
+        {
             Debug.Log("Logged in successfully!");
             onResult?.Invoke(true);
+            onCookie?.Invoke(setCookie);
         }
     }
 

@@ -28,6 +28,7 @@ public class LoginManager : MonoBehaviour
     [Header("Logging In")]
     [SerializeField] GameObject RememberCheckMark;
     [SerializeField] GameObject ErrorLoggingInText;
+    [SerializeField] GameObject MainDashBoardUI;
 
 
     //InputField Items
@@ -62,6 +63,7 @@ public class LoginManager : MonoBehaviour
                     LoadingPage.alpha = 0f;
                     LoadingPage.blocksRaycasts = false;
                     LoadingPage.interactable = false;
+                    MainDashBoardUI.SetActive(true);
                 }
                 else
                 {
@@ -77,6 +79,11 @@ public class LoginManager : MonoBehaviour
                     StartCoroutine(UIShakerAnimation.Shake(ErrorLoggingInText.GetComponent<RectTransform>(), UIShakerAnimation.ShakeDirection.Horizontal));
                     ErrorLoggingInText.SetActive(true);
                     PlayerPrefs.DeleteAll();
+                }
+            },cookie => {
+                if (cookie != null) {
+                    ModemDataManager.CurrentSessionCookie = cookie;
+                    ModemDataManager.CurrentSessionAccessPoint = AccessPointText.text;
                 }
             }));
         }
@@ -255,6 +262,7 @@ public class LoginManager : MonoBehaviour
                 LoadingPage.alpha = 0f;
                 LoadingPage.blocksRaycasts = false;
                 LoadingPage.interactable = false;
+                MainDashBoardUI.SetActive(true);
 
                 if (RememberCheckMark.activeInHierarchy) {
                     PlayerPrefs.SetString("AccessPoint",AccessPointText.text);
@@ -275,6 +283,12 @@ public class LoginManager : MonoBehaviour
                 LoadingPage.interactable = false;
                 StartCoroutine(UIShakerAnimation.Shake(ErrorLoggingInText.GetComponent<RectTransform>(), UIShakerAnimation.ShakeDirection.Horizontal));
                 ErrorLoggingInText.SetActive(true);
+            }
+        }, cookie => {
+            if (cookie != null)
+            {
+                ModemDataManager.CurrentSessionCookie = cookie;
+                ModemDataManager.CurrentSessionAccessPoint = AccessPointText.text;
             }
         }));
     }
